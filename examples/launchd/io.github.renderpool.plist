@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>io.github.renderpool</string>
+
+  <!-- RenderPool (Rendering Pool Manager) on port 7875 (the port is set in config.json).
+       Replace __RENDERPOOL_DIR__ with the folder holding renderpool.py, e.g.
+         sed "s#__RENDERPOOL_DIR__#$PWD#g" examples/launchd/io.github.renderpool.plist > ~/Library/LaunchAgents/io.github.renderpool.plist
+         launchctl load ~/Library/LaunchAgents/io.github.renderpool.plist
+       Needs __RENDERPOOL_DIR__/config.json (copy config.example.json and edit it). -->
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/bin/python3</string>
+    <string>__RENDERPOOL_DIR__/renderpool.py</string>
+    <string>serve</string>
+    <string>--config</string>
+    <string>__RENDERPOOL_DIR__/config.json</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>__RENDERPOOL_DIR__</string>
+
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+
+  <!-- If config.json lists a tailnet IP, the bind fails for a few seconds at boot before the VPN is
+       up and RenderPool exits; KeepAlive restarts it and the throttle keeps that from being a tight loop. -->
+  <key>ThrottleInterval</key>
+  <integer>10</integer>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <!-- launchd sets no LANG; without it Python may not default to UTF-8. -->
+    <key>LANG</key>
+    <string>en_US.UTF-8</string>
+  </dict>
+
+  <key>StandardOutPath</key>
+  <string>__RENDERPOOL_DIR__/state/renderpool.log</string>
+  <key>StandardErrorPath</key>
+  <string>__RENDERPOOL_DIR__/state/renderpool.log</string>
+</dict>
+</plist>

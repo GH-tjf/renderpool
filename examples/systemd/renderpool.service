@@ -1,0 +1,22 @@
+# systemd user unit for RenderPool (Rendering Pool Manager).
+#   sed "s#__RENDERPOOL_DIR__#$PWD#g" examples/systemd/renderpool.service > ~/.config/systemd/user/renderpool.service
+#   systemctl --user daemon-reload && systemctl --user enable --now renderpool.service
+#   journalctl --user -u renderpool.service -f
+# For it to run while you are logged out: loginctl enable-linger "$USER".
+# Needs __RENDERPOOL_DIR__/config.json (copy config.example.json and edit it).
+[Unit]
+Description=RenderPool - Rendering Pool Manager
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=__RENDERPOOL_DIR__
+ExecStart=/usr/bin/python3 __RENDERPOOL_DIR__/renderpool.py serve --config __RENDERPOOL_DIR__/config.json
+Environment=LANG=C.UTF-8
+# If config.json lists a tailnet IP, the bind fails until the VPN is up; restart until it is.
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=default.target

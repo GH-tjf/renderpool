@@ -1,0 +1,11 @@
+state/
+outputs/
+config.json
+config.json.prev
+__pycache__/
+.venv/
+.venv-*/
+build/
+dist/
+*.egg-info/
+.DS_Store

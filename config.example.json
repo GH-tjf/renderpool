@@ -1,0 +1,122 @@
+{
+ "listen": [
+  "127.0.0.1"
+ ],
+ "allowed_origins": [],
+ "port": 7875,
+ "db_path": "state/renderpool.db",
+ "outputs_dir": "outputs",
+ "keep_copies_for": [
+  "me",
+  "gui"
+ ],
+ "hide_prompt_for": [
+  "storyapp"
+ ],
+ "default_max_wait_s": 1800,
+ "retry_after_s": 30,
+ "key_replay_s": 600,
+ "group_affinity": false,
+ "affinity_max_wait_s": 120,
+ "inventory_refresh_s": 300,
+ "probe_interval_s": 10,
+ "probe_timeout_s": 5,
+ "relaunch_wait_s": 90,
+ "down_retry_s": 60,
+ "run_timeout_s": {
+  "image": 900,
+  "video": 3600
+ },
+ "power_interval_s": 30,
+ "notify_cmd": [],
+ "max_attempts": 3,
+ "history_limit": 50,
+ "cleared_models": [
+  {
+   "file": "flux_2_klein_4b_q6p.ckpt",
+   "kind": "image",
+   "label": "FLUX.2 klein 4B",
+   "license": "Apache-2.0 (black-forest-labs/FLUX.2-klein-4B LICENSE)",
+   "equivalents": [],
+   "fixed": {
+    "guidance_scale": 1.0
+   }
+  },
+  {
+   "file": "flux_3_klein_q8p.ckpt",
+   "kind": "image",
+   "label": "FLUX.3 Klein 5.6B",
+   "license": "FLUX Kommunity v1.0 - read the model's own license; record your obligations here",
+   "equivalents": [],
+   "fixed": {
+    "guidance_scale": 1.0
+   }
+  },
+  {
+   "file": "ltx_2.3_22b_distilled_1.1_q6p.ckpt",
+   "kind": "video",
+   "label": "LTX-2.3 22B distilled",
+   "license": "LTX-2.x Community: free under $10M annual revenue; above that a paid license; no circumventing filters, no competing with Lightricks' products (read the model's own license)",
+   "equivalents": []
+  },
+  {
+   "file": "minimax_h3_fl2va_i8x.ckpt",
+   "kind": "video",
+   "label": "MiniMax H3",
+   "license": "MiniMax H3 Community - read the model's own license; record your obligations here",
+   "equivalents": []
+  }
+ ],
+ "default_model": "flux_2_klein_4b_q6p.ckpt",
+ "backends": [
+  {
+   "name": "studio",
+   "where": "local",
+   "local_port": 7860,
+   "engine": "a1111",
+   "app": "drawthings",
+   "os": "macos",
+   "abilities": [
+    "image",
+    "video"
+   ],
+   "laptop": false,
+   "speed_rank": 25,
+   "model_map": {},
+   "pools": {
+    "image": true,
+    "video": true
+   }
+  },
+  {
+   "name": "laptop",
+   "where": "ssh",
+   "ssh_host": "user@laptop.local",
+   "ssh_key": "id_ed25519",
+   "remote_port": 7860,
+   "local_port": 7861,
+   "engine": "a1111",
+   "app": "drawthings",
+   "os": "macos",
+   "abilities": [
+    "image"
+   ],
+   "laptop": true,
+   "speed_rank": 51,
+   "model_map": {},
+   "pools": {
+    "image": false,
+    "video": false
+   }
+  }
+ ],
+ "test_sources": [
+  "me",
+  "gui"
+ ],
+ "test_kinds": {},
+ "test_notes": {
+  "qwen_image_2.1": "Qwen RESEARCH license, non-commercial (test only)"
+ },
+ "history_keep_days": 7
+}

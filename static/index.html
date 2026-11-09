@@ -1,0 +1,688 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RenderPool</title>
+<style>
+:root {
+  --bg: #f4f2fb; --panel: #ffffff; --ink: #1d1a2b; --muted: #6b6785; --line: #e3dff2;
+  --accent: #6d4aff; --ok: #12a46b; --warn: #c27a12; --bad: #d23a5f; --chip: #f0edfa;
+  --grad: linear-gradient(100deg, #6d4aff 0%, #d94cff 45%, #ff6a88 75%, #ffb347 100%);
+  --seat-l: 38%; --seat-a: .14; --glow: 0 1px 2px rgba(40, 20, 90, .06), 0 8px 24px rgba(80, 50, 180, .06);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f0d18; --panel: #191626; --ink: #ece9f7; --muted: #a29cbd; --line: #2c2742;
+    --accent: #9b84ff; --ok: #3ddc97; --warn: #ffc15e; --bad: #ff6b8b; --chip: #241f37;
+    --seat-l: 74%; --seat-a: .2; --glow: 0 1px 2px rgba(0, 0, 0, .4), 0 10px 30px rgba(90, 60, 200, .12);
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f0d18; --panel: #191626; --ink: #ece9f7; --muted: #a29cbd; --line: #2c2742;
+  --accent: #9b84ff; --ok: #3ddc97; --warn: #ffc15e; --bad: #ff6b8b; --chip: #241f37;
+  --seat-l: 74%; --seat-a: .2; --glow: 0 1px 2px rgba(0, 0, 0, .4), 0 10px 30px rgba(90, 60, 200, .12);
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink);
+  font: 14px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+header { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between;
+  padding: 10px 16px; background: var(--panel); position: sticky; top: 0; z-index: 2; box-shadow: var(--glow); }
+header::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: var(--grad); }
+h1 { font-size: 20px; margin: 0; letter-spacing: -.01em; }
+h1 .brand { background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; font-weight: 800; }
+h1 .logo { display: inline-block; width: 18px; height: 18px; border-radius: 6px; background: var(--grad);
+  vertical-align: -2px; margin-right: 6px; box-shadow: 0 0 12px rgba(217, 76, 255, .45); }
+h2 { font-size: 12px; margin: 0 0 10px; color: var(--accent); text-transform: uppercase; letter-spacing: .08em; font-weight: 700; }
+main { max-width: 1100px; margin: 0 auto; padding: 16px 16px 40px; }
+.view { display: grid; gap: 14px; }
+.view[hidden] { display: none; }
+section { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px; min-width: 0; box-shadow: var(--glow); }
+button, select, input, textarea { font: inherit; color: inherit; }
+button { background: var(--chip); border: 1px solid var(--line); border-radius: 8px; padding: 4px 10px; cursor: pointer; }
+button:hover { border-color: var(--accent); }
+button.primary { background: var(--grad); color: #fff; border-color: transparent; font-weight: 600; }
+button.danger { color: var(--bad); }
+.tabs { display: flex; gap: 4px; }
+.tabs button[aria-selected="true"] { background: var(--grad); color: #fff; border-color: transparent; font-weight: 600; }
+.status { font-weight: 600; }
+.paused { color: var(--warn); }
+.row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.muted { color: var(--muted); }
+.small { font-size: 12px; }
+.pool { display: grid; grid-template-columns: minmax(90px, 1.2fr) 64px 64px minmax(120px, 2fr); gap: 4px 10px; align-items: center; }
+.pool .hd { font-size: 12px; color: var(--muted); }
+.pool .cell { min-width: 0; overflow-wrap: anywhere; }
+.pool label { display: flex; gap: 4px; align-items: center; }
+.st { font-size: 12px; border-radius: 10px; padding: 2px 9px; background: var(--chip); display: inline-block; font-weight: 600; }
+.st.idle { color: var(--ok); background: color-mix(in srgb, var(--ok) 14%, transparent); }
+.st.drawing { color: #fff; background: var(--grad); background-size: 200% 100%; animation: flow 3s linear infinite;
+  box-shadow: 0 0 14px rgba(217, 76, 255, .35); }
+@keyframes flow { from { background-position: 0% 0; } to { background-position: 200% 0; } }
+@media (prefers-reduced-motion: reduce) { .st.drawing { animation: none; } }
+.os { font-size: 10px; font-weight: 700; letter-spacing: .03em; border-radius: 6px; padding: 1px 6px; margin-left: 6px;
+  vertical-align: 1px; background: var(--chip); color: var(--muted); }
+.os-macos { color: #8a8fa3; } .os-windows { color: #2f8cff; } .os-linux { color: #e8a317; }
+.st.offline, .st.needs { color: var(--bad); }
+.st.battery, .st.unchecked, .st.relaunching { color: var(--warn); }
+ul.q { list-style: none; margin: 0; padding: 0; }
+ul.q li { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; padding: 7px 4px; border-top: 1px solid var(--line); }
+ul.q li:first-child { border-top: 0; }
+ul.q li.dragging { opacity: .4; }
+ul.q li.over { outline: 2px dashed var(--accent); }
+.grip { cursor: grab; color: var(--muted); user-select: none; }
+.pos { width: 2.2em; color: var(--muted); text-align: right; }
+.what { flex: 1 1 220px; min-width: 0; overflow-wrap: anywhere; }
+.ptext { flex: 1 1 100%; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; padding: 6px 8px; margin-top: 4px; border-left: 3px solid #888; background: rgba(127,127,127,.08); }
+.chip { background: var(--chip); border-radius: 10px; padding: 1px 7px; font-size: 12px; }
+.chip.warn { color: var(--warn); }
+.chip.bad { color: var(--bad); }
+.chip.test { color: var(--warn); font-weight: 600; }
+.chip.seat { font-weight: 700; color: hsl(var(--seat-h, 260), 75%, var(--seat-l));
+  background: hsla(var(--seat-h, 260), 80%, 55%, var(--seat-a)); }
+#running li { border-left: 3px solid transparent; border-image: var(--grad) 1; padding-left: 8px; }
+[data-bump] { cursor: pointer; text-decoration: underline dotted; }
+.hist .testflag { color: var(--warn); font-weight: 600; font-size: 11px; }
+.acts { display: flex; gap: 4px; flex-wrap: wrap; }
+form.grid { display: grid; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+form.grid label { display: grid; gap: 2px; font-size: 12px; color: var(--muted); }
+form.grid .wide { grid-column: 1 / -1; }
+form.grid input:not([type=checkbox]), form.grid select, form.grid textarea {
+  background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 6px; width: 100%; min-width: 0; }
+form.grid .checks { display: flex; gap: 12px; flex-wrap: wrap; color: var(--ink); font-size: 13px; }
+form.grid .checks label { display: flex; gap: 4px; align-items: center; color: var(--ink); font-size: 13px; }
+.errs { color: var(--bad); font-size: 13px; margin: 0; padding-left: 18px; }
+.hist { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); padding-bottom: 6px; }
+.hist .h { font-size: 12px; min-width: 0; }
+.hist img, .hist .ph { width: 150px; height: 112px; object-fit: cover; border-radius: 10px; border: 1px solid var(--line); background: var(--chip); display: block;
+  transition: transform .15s ease, box-shadow .15s ease; }
+.hist a.pic:hover img { transform: translateY(-2px) scale(1.03); box-shadow: 0 8px 22px rgba(109, 74, 255, .35); }
+.hist .ph { display: flex; align-items: center; justify-content: center; color: var(--muted); }
+.hist .pic { position: relative; }
+.hist .badge { position: absolute; left: 4px; bottom: 4px; background: rgba(0,0,0,.65); color: #fff; border-radius: 8px; padding: 0 6px; font-size: 11px; }
+.hist .h.failed .ph, .hist .h.canceled .ph, .hist .h.abandoned .ph { color: var(--bad); }
+form.grid .hint { font-size: 11px; color: var(--muted); font-weight: normal; }
+form.grid label[hidden] { display: none; }
+h2 .act { float: right; text-transform: none; letter-spacing: 0; font-size: 12px; }
+.boxcard { border: 1px solid var(--line); border-radius: 8px; padding: 10px; display: grid; gap: 6px; }
+.boxlist { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
+.models { display: flex; flex-wrap: wrap; gap: 4px; }
+.models .nc { opacity: .45; text-decoration: line-through; }
+#err { color: var(--bad); }
+@media (max-width: 560px) {
+  header { padding: 8px 12px; }
+  header h1 .sub { display: none; }
+  main { padding: 10px 8px 32px; }
+  section { padding: 10px; }
+  .pool { grid-template-columns: minmax(0, 1.2fr) 40px 40px minmax(0, 1.6fr); gap: 4px 6px; }
+  .pool .err { display: none; }
+  form.grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .boxlist { grid-template-columns: minmax(0, 1fr); }
+}
+</style>
+</head>
+<body>
+<header>
+  <h1><span class="logo" aria-hidden="true"></span><span class="brand">RenderPool</span> <span class="muted small sub">one queue for all your image machines <span id="ver"></span></span></h1>
+  <div class="tabs" role="tablist">
+    <button id="tab-pools" role="tab" aria-selected="true">Pools</button>
+    <button id="tab-boxes" role="tab" aria-selected="false">Boxes</button>
+    <button id="tab-settings" role="tab" aria-selected="false">Settings</button>
+  </div>
+  <div class="row">
+    <span id="gstate" class="status"></span>
+    <button id="pauseAll">Pause all</button>
+    <button id="theme" title="Toggle light/dark">◐</button>
+  </div>
+</header>
+<main>
+  <div id="err"></div>
+
+  <div id="pools" class="view">
+    <section>
+      <h2>Pools</h2>
+      <div id="poolgrid" class="pool"></div>
+    </section>
+    <section><h2>Running</h2><ul id="running" class="q"></ul></section>
+    <section>
+      <h2>Queue <span id="qcount" class="muted"></span></h2>
+      <div id="groups" class="row small" style="margin-bottom:6px"></div>
+      <ul id="queue" class="q"></ul>
+    </section>
+    <section>
+      <h2>Make a picture or video</h2>
+      <form id="newf" class="grid">
+        <label class="wide">Describe it<textarea name="prompt" rows="2" required></textarea></label>
+        <label>Model<select name="model" id="modelSel"></select><span class="hint" id="modelHint">cleared models first; TEST models only for trying out</span></label>
+        <label>Size<select name="size">
+          <option>1024x1024</option><option>768x1024</option><option>1024x768</option>
+          <option>1344x768</option><option>768x1344</option><option>768x512</option><option>512x512</option></select>
+          <span class="hint">width x height in pixels</span></label>
+        <label data-p="steps">Steps<input name="steps" type="number" min="1" max="150" value="12"><span class="hint">more = finer detail, slower</span></label>
+        <label data-p="seed">Seed<input name="seed" type="number" min="0"><span class="hint">blank = random; same seed = same picture</span></label>
+        <label data-p="count">How many<input name="count" type="number" min="1" max="20" value="1"><span class="hint">each gets its own seed</span></label>
+        <label data-p="guidance_scale">Guidance<input name="guidance_scale" type="number" step="0.1" value="1.0"><span class="hint">how strictly the picture follows your words</span></label>
+        <label data-p="num_frames" data-video>Frames<input name="num_frames" type="number" min="1" max="201" value="121"><span class="hint">video length; 121 frames at 24 per second = 5 s</span></label>
+        <label data-p="fps" data-video>Frames per second<input name="fps" type="number" min="1" max="30" value="24"><span class="hint">playback speed of the clip</span></label>
+        <div class="wide small muted" id="fixedNote"></div>
+        <div class="wide small muted" id="unknownNote"></div>
+        <div class="wide row"><button class="primary" type="submit">Add to queue</button><span id="newmsg" class="muted small"></span></div>
+      </form>
+    </section>
+    <section><h2>History <span class="muted" id="hcount"></span><span class="act"><button id="clearHist" class="danger" title="delete every finished job and its pictures">Clear history</button></span></h2>
+      <div class="small muted" id="histNote"></div>
+      <div id="history" class="hist"></div>
+      <div id="histPrompt" class="ptext" hidden></div></section>
+  </div>
+
+  <div id="boxes" class="view" hidden>
+    <section>
+      <h2>Boxes</h2>
+      <div id="boxlist" class="boxlist"></div>
+    </section>
+    <section>
+      <h2 id="boxformTitle">Add a box</h2>
+      <form id="boxf" class="grid" autocomplete="off">
+        <label>Name<input name="name" required maxlength="32" pattern="[A-Za-z0-9_\-]{1,32}"></label>
+        <label>Where<select name="where"><option value="local">this machine</option><option value="ssh">over ssh</option></select></label>
+        <label>ssh host (user@host)<input name="ssh_host" placeholder="user@laptop.local"></label>
+        <label>ssh key (file in ~/.ssh)<input name="ssh_key" placeholder="id_ed25519"></label>
+        <label>Engine port on the box<input name="remote_port" type="number" min="1" max="65535" value="7860"></label>
+        <label>Local port (unique)<input name="local_port" type="number" min="1" max="65535" required></label>
+        <label>gRPC bridge port (0 = plain HTTP)<input name="api_port" type="number" min="0" max="65535" value="0"></label>
+        <label>Engine<select name="engine" id="engineSel"></select></label>
+        <label>App<select name="app"><option value="drawthings">Draw Things</option><option value="other">another A1111-style app</option></select></label>
+        <label>Note<input name="note" maxlength="60" placeholder="optional, e.g. Forge · RTX 4090" title="shown under the box name"></label>
+        <label>OS<select name="os"><option value="macos">macOS</option><option value="windows">Windows</option><option value="linux">Linux</option></select></label>
+        <label>Seconds per picture (first guess)<input name="speed_rank" type="number" min="0.1" step="0.1" value="60"></label>
+        <div class="wide checks">
+          <span class="muted small">Abilities</span>
+          <label><input type="checkbox" name="ab_image" checked> image</label>
+          <label><input type="checkbox" name="ab_video"> video</label>
+          <span class="muted small">Pools</span>
+          <label><input type="checkbox" name="pool_image"> image pool</label>
+          <label><input type="checkbox" name="pool_video"> video pool</label>
+          <label><input type="checkbox" name="laptop"> laptop (out of the pool on battery)</label>
+        </div>
+        <label class="wide">Model map: one line per cleared model, <code>cleared_file = file_on_this_box</code>
+          <textarea name="model_map" rows="2" placeholder="flux_2_klein_4b_q6p.ckpt = flux-2-klein-4b-Q6_K.gguf"></textarea></label>
+        <ul id="boxerrs" class="errs wide"></ul>
+        <div class="wide row">
+          <button class="primary" type="submit" id="boxSave">Add box</button>
+          <button type="button" id="boxCancel">Clear form</button>
+          <span id="boxmsg" class="muted small"></span>
+        </div>
+      </form>
+    </section>
+  </div>
+
+  <div id="settings" class="view" hidden>
+    <section>
+      <h2>Settings</h2>
+      <p class="small muted">Changes work at once (no restart), are saved to <span id="setPath"></span>, and are written to the pool log with who made them.</p>
+      <form id="setf" class="grid">
+        <label>Keep finished jobs for (days)<input name="history_keep_days" type="number" min="0" max="3650" step="any" required><span class="hint">older jobs and their pictures are deleted; 0 = keep forever</span></label>
+        <label>Finished jobs shown<input name="history_limit" type="number" min="1" max="1000" step="1" required><span class="hint">how many the History list shows</span></label>
+        <label>Keep pool log for (days)<input name="pool_log_keep_days" type="number" min="0" max="3650" step="any" required><span class="hint">older pool-change lines are trimmed; 0 = keep forever</span></label>
+        <label>Longest wait for a free box (seconds)<input name="default_max_wait_s" type="number" min="60" max="86400" step="1" required><span class="hint">a request with no wait of its own gives up after this (1800 = 30 min)</span></label>
+        <label class="wide">Keep full-size copies for<input name="keep_copies_for" type="text"><span class="hint">sources, separated by commas (e.g. me, gui, storyapp); others keep only a thumbnail</span></label>
+        <div class="wide row">
+          <button class="primary" type="submit">Save settings</button>
+          <button type="button" id="setReset">Undo my edits</button>
+          <span id="setmsg" class="muted small"></span>
+        </div>
+      </form>
+    </section>
+  </div>
+</main>
+<script>
+(function () {
+  "use strict";
+  var S = null, B = null, dragId = null, editing = false, editName = null, view = "pools";
+  var $ = function (id) { return document.getElementById(id); };
+  // Optional password: when the server answers 401, ask once; a right answer sets a login cookie and reloads.
+  var rawFetch = window.fetch.bind(window), asking = false, declined = false;
+  function askPassword() {
+    if (asking || declined) return;
+    asking = true;
+    var pw = window.prompt("This RenderPool has a password:");
+    asking = false;
+    if (pw === null) { declined = true; $("err").textContent = "Password needed - reload the page to try again."; return; }
+    rawFetch("/renderpool/api/login", {method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({password: pw})}).then(function (r) {
+      if (r.ok) location.reload(); else { $("err").textContent = "Wrong password."; }
+    });
+  }
+  window.fetch = function (u, o) {
+    return rawFetch(u, o).then(function (r) { if (r.status === 401) askPassword(); return r; });
+  };
+  try { var t = localStorage.getItem("renderpool-theme"); if (t) document.documentElement.setAttribute("data-theme", t); } catch (e) {}
+  $("theme").onclick = function () {
+    var cur = document.documentElement.getAttribute("data-theme");
+    var dark = cur ? cur === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+    var nxt = dark ? "light" : "dark";
+    document.documentElement.setAttribute("data-theme", nxt);
+    try { localStorage.setItem("renderpool-theme", nxt); } catch (e) {}
+  };
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+    return {"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]; }); }
+  function el(html) { var d = document.createElement("div"); d.innerHTML = html.trim(); return d.firstElementChild; }
+  function secs(x) { if (x == null) return ""; return x < 60 ? x.toFixed(1) + "s" : Math.floor(x / 60) + "m" + Math.round(x % 60) + "s"; }
+  function post(verb, args) {
+    return fetch("/renderpool/api/" + verb, {method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify(args || {})}).then(function (r) { return r.json().then(function (j) { j._status = r.status; return j; }); });
+  }
+  function api(verb, args) {
+    return post(verb, args).then(function (j) {
+      $("err").textContent = j._status >= 400 ? (j.error || ("HTTP " + j._status)) : "";
+      refresh(); return j; });
+  }
+
+  // ---- tabs
+  function show(v) {
+    view = v;
+    ["pools", "boxes", "settings"].forEach(function (t) {
+      $(t).hidden = v !== t; $("tab-" + t).setAttribute("aria-selected", v === t); });
+    try { localStorage.setItem("renderpool-tab", v); } catch (e) {}
+    if (v === "boxes") loadBoxes();
+    if (v === "settings") fillSettings();
+  }
+  $("tab-pools").onclick = function () { show("pools"); };
+  $("tab-boxes").onclick = function () { show("boxes"); };
+  $("tab-settings").onclick = function () { show("settings"); };
+
+  // ---- settings screen (filled when shown and after a save, never while you type)
+  function fillSettings() {
+    return fetch("/renderpool/api/state", {cache: "no-store"}).then(function (r) { return r.json(); }).then(function (st) {
+      var f = $("setf"), v = st.settings || {};
+      ["history_keep_days", "history_limit", "pool_log_keep_days", "default_max_wait_s"].forEach(function (k) {
+        f.elements[k].value = v[k] == null ? "" : v[k]; });
+      f.elements.keep_copies_for.value = (v.keep_copies_for || []).join(", ");
+      $("setPath").textContent = st.settings_saved_to || "(no config file: changes last until RenderPool restarts)";
+    });
+  }
+  $("setReset").onclick = function () { $("setmsg").textContent = ""; fillSettings(); };
+  $("setf").onsubmit = function (e) {
+    e.preventDefault();
+    var f = $("setf"), args = {};
+    ["history_keep_days", "history_limit", "pool_log_keep_days", "default_max_wait_s"].forEach(function (k) {
+      args[k] = Number(f.elements[k].value); });
+    args.keep_copies_for = f.elements.keep_copies_for.value;
+    $("setmsg").textContent = "saving…";
+    post("settings", args).then(function (j) {
+      if (j._status >= 400) { $("setmsg").textContent = "Not saved: " + (j.error || ("HTTP " + j._status)); return; }
+      var n = Object.keys(j.changed || {}).length;
+      $("setmsg").textContent = n ? "Saved " + n + " change" + (n > 1 ? "s" : "") + ": " +
+        Object.keys(j.changed).join(", ") : "Nothing changed.";
+      fillSettings(); refresh();
+    }).catch(function (err) { $("setmsg").textContent = "Not saved: " + err; });
+  };
+
+  // ---- pools screen
+  function stClass(t) {
+    if (t.indexOf("needs you") === 0) return "needs";
+    if (t === "on battery") return "battery";
+    return t;
+  }
+  function renderPools() {
+    var g = $("poolgrid"); g.innerHTML = "";
+    ["Box", "Image", "Video", "State"].forEach(function (h) { g.appendChild(el('<div class="hd">' + h + "</div>")); });
+    if (!S.boxes.length) { g.appendChild(el('<div class="muted cell" style="grid-column:1/-1">no boxes yet: add one on the Boxes tab</div>')); return; }
+    var byId = {}; S.running.forEach(function (it) { byId[it.id] = it; });
+    (S.invalid_boxes || []).forEach(function (x) {
+      g.appendChild(el('<div class="cell"><b>' + esc(x.name) + '</b></div>'));
+      g.appendChild(el('<div class="cell"></div>')); g.appendChild(el('<div class="cell"></div>'));
+      g.appendChild(el('<div class="cell"><span class="st needs" title="' + esc(x.errors.join("\n")) +
+        '">invalid: fix it on the Boxes tab</span></div>'));
+    });
+    S.boxes.forEach(function (b) {
+      g.appendChild(el('<div class="cell"><b>' + esc(b.name) + "</b>" + osTag(b.os) + '<div class="muted small">' +
+        esc(b.note || (b.app === "drawthings" ? "Draw Things" : "A1111-style app")) +
+        (b.laptop ? " · laptop" : "") + "</div></div>"));
+      ["image", "video"].forEach(function (k) {
+        var can = b.abilities.indexOf(k) >= 0;
+        var c = el('<label class="cell"><input type="checkbox"' + (b.pools[k] ? " checked" : "") + (can ? "" : " disabled") +
+          ' title="' + (can ? k + " pool" : "this box cannot do " + k) + '"></label>');
+        c.querySelector("input").onchange = function (e) { api("pool", {box: b.name, kind: k, on: e.target.checked}); };
+        g.appendChild(c);
+      });
+      var txt = b.state_text, cur = b.current != null ? byId[b.current] : null;
+      if (txt === "drawing" && cur) txt = 'drawing "' + (cur.label || ("#" + cur.id)) + '" ' + secs(b.elapsed);
+      g.appendChild(el('<div class="cell"><span class="st ' + esc(stClass(b.state_text)) + '">' + esc(txt) + "</span>" +
+        (b.models_error && !b.up && b.state_text !== "unchecked" ? ' <span class="muted small err">' + esc(b.models_error) + "</span>" : "") + "</div>"));
+    });
+  }
+  // each sender gets its own steady color, so whose jobs are whose shows at a glance
+  function seatStyle(s) {
+    var h = 0;
+    for (var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 360;
+    return "--seat-h:" + h;
+  }
+  function osTag(o) {
+    var t = {macos: "macOS", windows: "Windows", linux: "Linux"}[o];
+    return t ? ' <span class="os os-' + esc(o) + '">' + t + "</span>" : "";
+  }
+  function desc(it) {
+    var t = esc(it.label || it.prompt || "(no label)");
+    var bits = ['<span class="chip seat" style="' + seatStyle(it.seat || "") + '" data-bump="seat" data-val="' + esc(it.seat || "") + '" title="' +
+      (it.seat ? "sent by " + esc(it.seat) + " - click to move all of its queued jobs" : "the sender did not name itself (X-RenderPool-Seat)") + '">' +
+      "👤 " + esc(it.seat || "?") + "</span>", '<span class="chip">' + esc(it.source) + "</span>"];
+    if (it.priority) bits.push('<span class="chip' + (it.priority > 0 ? " warn" : "") + '" title="priority (higher runs sooner)">' +
+      (it.priority > 0 ? "⬆ " : "⬇ ") + it.priority + "</span>");
+    if (it.kind) bits.push('<span class="chip">' + esc(it.kind) + "</span>");
+    if (it.test) bits.push('<span class="chip test" title="this model is not on the cleared list">TEST ONLY - not cleared for production</span>');
+    if (it.group) bits.push('<span class="chip">' + esc(it.group) + "</span>");
+    if (it.model) bits.push('<span class="chip" data-bump="model" data-val="' + esc(it.model) + '" title="click to move all queued jobs for this model">' + esc(it.model) + "</span>");
+    if (it.width) bits.push('<span class="chip">' + it.width + "x" + it.height + "</span>");
+    if (it.pin) bits.push('<span class="chip">pin ' + esc(it.pin) + "</span>");
+    if (it.paused) bits.push('<span class="chip warn">paused</span>');
+    if (it.group_paused) bits.push('<span class="chip warn">group paused</span>');
+    if (it.note) bits.push('<span class="chip bad">' + esc(it.note) + "</span>");
+    return '<div class="what"><div>#' + it.id + " " + t + '</div><div class="row small">' + bits.join(" ") + "</div></div>";
+  }
+  function renderRunning() {
+    var ul = $("running"); ul.innerHTML = "";
+    if (!S.running.length) { ul.appendChild(el('<li class="muted">nothing drawing</li>')); return; }
+    S.running.forEach(function (it) {
+      var li = el("<li>" + desc(it) + '<span class="chip">' + esc(it.backend) + " · " + secs(it.seconds) + "</span></li>");
+      var prb = el('<button title="show or hide the prompt">📝</button>');
+      prb.onclick = function () { togglePrompt(it.id, renderRunning); };
+      li.appendChild(prb);
+      clickToExpand(li, it.id, renderRunning);
+      ul.appendChild(li);
+    });
+  }
+  // a click on a row's text (or its 📝) opens that item's prompt under the row; a second click closes it
+  function togglePrompt(id, rerender) {
+    if (openPrompts[id]) { delete openPrompts[id]; rerender(); return; }
+    openPrompts[id] = true; rerender(); loadPrompt(id, rerender);
+  }
+  // a seat or model chip on a queue/running line: move every queued job with that seat/model to the top or bottom
+  function bumpChip(e) {
+    var c = e.target.closest ? e.target.closest("[data-bump]") : null;
+    if (!c || !c.getAttribute("data-val")) return false;
+    var k = c.getAttribute("data-bump"), v = c.getAttribute("data-val");
+    var n = S.queue.filter(function (q) { return (k === "seat" ? q.seat : q.model) === v; }).length;
+    if (!n) { alert("No queued jobs with " + k + " " + v + "."); return true; }
+    var to = prompt("Move all " + n + " queued job(s) with " + k + " " + v + " to the top or bottom?\nType top or bottom:", "top");
+    if (to === "top" || to === "bottom") { var a = {to: to === "top" ? "front" : "back"}; a[k] = v; api("bump", a); }
+    return true;
+  }
+  function clickToExpand(li, id, rerender) {
+    var w = li.querySelector(".what");
+    w.style.cursor = "pointer"; w.title = "click to show or hide the prompt";
+    w.onclick = function (e) { if (bumpChip(e)) return; togglePrompt(id, rerender); };
+    if (openPrompts[id]) { li.style.flexWrap = "wrap"; li.appendChild(el('<div class="ptext">' + promptBody(id) + "</div>")); }
+  }
+  function renderGroups() {
+    var box = $("groups"); box.innerHTML = "";
+    var groups = {};
+    S.queue.forEach(function (it) { if (it.group) groups[it.group] = (groups[it.group] || 0) + 1; });
+    S.paused_groups.forEach(function (g) { if (!(g in groups)) groups[g] = 0; });
+    Object.keys(groups).sort().forEach(function (g) {
+      var p = S.paused_groups.indexOf(g) >= 0;
+      var w = el('<span class="row"><span class="chip">' + esc(g) + " (" + groups[g] + ")</span></span>");
+      var b1 = el("<button>" + (p ? "▶ resume" : "⏸ pause") + "</button>");
+      b1.onclick = function () { api(p ? "resume" : "pause", {group: g}); };
+      var b2 = el('<button class="danger">cancel group</button>');
+      b2.onclick = function () { if (confirm("Cancel every queued item in " + g + "?")) api("cancel", {group: g}); };
+      w.appendChild(b1); w.appendChild(b2); box.appendChild(w);
+    });
+  }
+  // prompts are fetched one item at a time, only when a person asks (never in /state)
+  var promptCache = {}, openPrompts = {}, histPromptId = null;
+  function promptBody(id) {
+    var p = promptCache[id];
+    if (!p) return "loading prompt…";
+    if (p.error) return esc(p.error);
+    return "<b>Prompt:</b> " + (esc(p.prompt) || "(none)") + (p.negative_prompt ? "\n<b>Negative:</b> " + esc(p.negative_prompt) : "");
+  }
+  function loadPrompt(id, done) {
+    if (promptCache[id]) return done();
+    post("prompt", {item: id}).then(function (j) {
+      promptCache[id] = j._status >= 400 ? {error: j.error || ("HTTP " + j._status)} : j; done(); });
+  }
+  function showHistPrompt() {
+    var d = $("histPrompt");
+    d.hidden = histPromptId == null;
+    if (histPromptId != null) d.innerHTML = "#" + histPromptId + " " + promptBody(histPromptId);
+  }
+  function renderQueue() {
+    var ul = $("queue"); ul.innerHTML = "";
+    $("qcount").textContent = "(" + S.queue.length + ")";
+    if (!S.queue.length) { ul.appendChild(el('<li class="muted">empty</li>')); return; }
+    S.queue.forEach(function (it) {
+      var li = el('<li draggable="true"><span class="grip" title="drag to reorder">☰</span><span class="pos">' + it.position + "</span>" +
+        desc(it) + '<span class="acts"></span></li>');
+      var acts = li.querySelector(".acts");
+      [["⏫", "front", "move to the top"], ["▲", "up", "up one"], ["▼", "down", "down one"]].forEach(function (a) {
+        var b = el('<button title="' + a[2] + '">' + a[0] + "</button>"); b.onclick = function () { api(a[1], {item: it.id}); }; acts.appendChild(b);
+      });
+      var pb = el("<button>" + (it.paused ? "▶" : "⏸") + "</button>");
+      pb.title = it.paused ? "resume this item" : "pause this item";
+      pb.onclick = function () { api(it.paused ? "resume" : "pause", {item: it.id}); }; acts.appendChild(pb);
+      var cb = el('<button class="danger" title="cancel">✕</button>');
+      cb.onclick = function () { api("cancel", {item: it.id}); }; acts.appendChild(cb);
+      var prb = el('<button title="show or hide the prompt">📝</button>');
+      prb.onclick = function () { togglePrompt(it.id, renderQueue); };
+      acts.insertBefore(prb, acts.firstChild);
+      clickToExpand(li, it.id, renderQueue);
+      li.addEventListener("dragstart", function () { dragId = it.id; li.classList.add("dragging"); });
+      li.addEventListener("dragend", function () { dragId = null; li.classList.remove("dragging"); });
+      li.addEventListener("dragover", function (e) { e.preventDefault(); li.classList.add("over"); });
+      li.addEventListener("dragleave", function () { li.classList.remove("over"); });
+      li.addEventListener("drop", function (e) { e.preventDefault(); li.classList.remove("over");
+        if (dragId != null && dragId !== it.id) api("move", {item: dragId, pos: it.position}); });
+      ul.appendChild(li);
+    });
+  }
+  function renderHistory() {
+    var box = $("history"), sig = JSON.stringify(S.history.map(function (it) { return [it.id, it.state, it.thumb]; }));
+    $("hcount").textContent = S.history.length ? "(" + S.history.length + ")" : "";
+    $("histNote").textContent = S.history_keep_days > 0 ? "finished jobs are deleted after " + S.history_keep_days + " days" : "";
+    if (box.getAttribute("data-sig") === sig) return;     // unchanged: keep the loaded thumbnails
+    box.setAttribute("data-sig", sig); box.innerHTML = "";
+    if (!S.history.length) { box.appendChild(el('<div class="muted">nothing yet</div>')); return; }
+    S.history.forEach(function (it) {
+      var video = it.kind === "video", badge = video ? '<span class="badge">▶ video' + (it.frames ? " · " + it.frames + " frames" : "") + "</span>" : "";
+      var img = it.thumb ? '<img loading="lazy" src="' + esc(it.thumb) + '" alt="">' : '<div class="ph">' + (video && it.state === "done" ? "video" : esc(it.state)) + "</div>";
+      var pic = it.full ? '<a class="pic" href="' + esc(it.full) + '" target="_blank" title="open the full ' + (video ? "first frame" : "picture") + '">' + img + badge + "</a>"
+                        : it.thumb ? '<a class="pic" href="' + esc(it.thumb) + '" target="_blank" title="RenderPool keeps only this small copy for ' + esc(it.source) +
+                                     ' pictures; the full picture is saved by ' + esc(it.source) + ' in its own job folder">' + img + badge + "</a>"
+                        : '<div class="pic">' + img + badge + "</div>";
+      box.appendChild(el('<div class="h ' + esc(it.state) + '" title="' + esc(it.label || it.prompt) + '">' + pic + "<div>#" + it.id + " " + esc(it.state) +
+        (it.http_status && it.http_status !== 200 ? " " + it.http_status : "") + '</div><div class="muted">' +
+        esc(it.backend || "-") + " · " + secs(it.seconds) + "</div>" +
+        (it.test ? '<div class="testflag" title="TEST ONLY - not cleared for production">TEST ONLY</div>' : "") +
+        '<button class="small hp" title="show this picture&#39;s prompt below the pictures">📝 prompt</button>' + "</div>"));
+      box.lastChild.querySelector(".hp").onclick = function () {
+        if (histPromptId === it.id) { histPromptId = null; showHistPrompt(); return; }
+        histPromptId = it.id; showHistPrompt(); loadPrompt(it.id, showHistPrompt); };
+    });
+  }
+  function modelInfo(file) {
+    for (var i = 0; i < S.cleared_models.length; i++) if (S.cleared_models[i].file === file) return S.cleared_models[i];
+    var t = S.test_models || [];
+    for (var j = 0; j < t.length; j++) if (t[j].file === file) return {file: t[j].file, kind: t[j].kind, test: true, note: t[j].note};
+    return {};
+  }
+  // fields a model always runs at (its "fixed" params) are hidden; video-only fields show for video models
+  var ALIASES = {guidance_scale: ["guidance_scale", "cfg_scale"]};
+  function applyModel() {
+    var m = modelInfo($("modelSel").value), fixed = m.fixed || {}, notes = [];
+    Array.prototype.forEach.call(document.querySelectorAll("#newf label[data-p]"), function (lab) {
+      var p = lab.getAttribute("data-p"), keys = ALIASES[p] || [p], isFixed = false;
+      keys.forEach(function (k) { if (k in fixed) { isFixed = true; notes.push(lab.firstChild.textContent.trim() + " " + fixed[k]); } });
+      lab.hidden = isFixed || (lab.hasAttribute("data-video") && m.kind !== "video");
+    });
+    $("fixedNote").textContent = (m.test ? "TEST ONLY - not cleared for production" + (m.note ? ": " + m.note : "") + ". " : "") +
+      (notes.length ? "This model always runs at: " + notes.join(", ") + " (set by RenderPool)." : "");
+    $("fixedNote").className = "wide small " + (m.test ? "chip test" : "muted");
+  }
+  function renderModels() {
+    if (editing) return;
+    var sel = $("modelSel"), cur = sel.value || S.default_model, html = "";
+    html += '<optgroup label="Cleared for production">';
+    S.cleared_models.forEach(function (m) {
+      html += '<option value="' + esc(m.file) + '"' + (m.file === cur ? " selected" : "") + ">" + esc(m.label || m.file) +
+        " (" + esc(m.kind) + ")</option>";
+    });
+    html += "</optgroup>";
+    var tm = S.test_models || [];
+    if (tm.length && (S.test_sources || []).indexOf("gui") >= 0) {
+      html += '<optgroup label="TEST ONLY - not cleared for production">';
+      tm.forEach(function (m) {
+        html += '<option value="' + esc(m.file) + '"' + (m.file === cur ? " selected" : "") + ">TEST: " + esc(m.file) +
+          " (" + esc(m.kind) + (m.note ? "; " + esc(m.note) : "") + ")</option>";
+      });
+      html += "</optgroup>";
+    }
+    if (sel.getAttribute("data-html") !== html) { sel.innerHTML = html; sel.setAttribute("data-html", html); }
+    var um = S.unknown_models || [];
+    $("unknownNote").textContent = um.length ? "Not offered, unknown type (set test_kinds in config.json to use): " +
+      um.map(function (m) { return m.file + " on " + m.boxes.join(", "); }).join("; ") : "";
+    applyModel();
+  }
+  $("modelSel").onchange = applyModel;
+  $("clearHist").onclick = function () {
+    if (!confirm("Delete every finished job and its stored pictures? Queued and running jobs are kept.")) return;
+    api("clear-history", {}).then(function (j) { $("histNote").textContent = j.deleted != null ? "deleted " + j.deleted + " finished job(s)" : ""; });
+  };
+  function render() {
+    $("ver").textContent = "v" + S.version;
+    $("gstate").textContent = S.paused ? "PAUSED" : "running";
+    $("gstate").className = "status" + (S.paused ? " paused" : "");
+    $("pauseAll").textContent = S.paused ? "Resume all" : "Pause all";
+    renderPools(); renderRunning(); renderGroups();
+    if (dragId == null) renderQueue();
+    renderHistory(); renderModels();
+  }
+  function refresh() {
+    return fetch("/renderpool/api/state", {cache: "no-store"}).then(function (r) { return r.json(); })
+      .then(function (j) { S = j; render(); if (view === "boxes") loadBoxes(); })
+      .catch(function (e) { $("err").textContent = "RenderPool not answering: " + e; });
+  }
+  $("pauseAll").onclick = function () { api(S && S.paused ? "resume" : "pause", {}); };
+  $("newf").addEventListener("focusin", function () { editing = true; });
+  $("newf").addEventListener("focusout", function () { editing = false; });
+  $("newf").onsubmit = function (e) {
+    e.preventDefault();
+    var f = e.target, wh = f.size.value.split("x");
+    var args = {prompt: f.prompt.value, model: f.model.value, width: +wh[0], height: +wh[1], steps: +f.steps.value,
+      count: +f.count.value, source: "gui"};
+    if (f.seed.value !== "") args.seed = +f.seed.value;
+    [["guidance_scale", f.guidance_scale], ["num_frames", f.num_frames], ["fps", f.fps]].forEach(function (x) {
+      if (!x[1].closest("label").hidden && x[1].value !== "") args[x[0]] = +x[1].value; });   // hidden = RenderPool fills it
+    api("submit", args).then(function (j) { $("newmsg").textContent = j.ids ? "queued #" + j.ids.join(", #") : ""; });
+  };
+
+  // ---- boxes screen
+  function loadBoxes() {
+    return fetch("/renderpool/api/boxes", {cache: "no-store"}).then(function (r) { return r.json(); })
+      .then(function (j) { B = j; renderBoxes(); });
+  }
+  function renderBoxes() {
+    var es = $("engineSel");
+    var eh = B.engines.map(function (n) { return '<option value="' + esc(n) + '">' + esc(n) + "</option>"; }).join("");
+    if (es.innerHTML !== eh) { var cur = es.value; es.innerHTML = eh; if (cur) es.value = cur; }
+    var list = $("boxlist"); list.innerHTML = "";
+    if (!B.boxes.length) { list.appendChild(el('<div class="muted">no boxes yet</div>')); return; }
+    B.boxes.forEach(function (b) {
+      if (b.invalid && b.invalid.length) {
+        var bad = el('<div class="boxcard"><div class="row"><b>' + esc(b.name) + '</b><span class="st needs">invalid: never used</span></div>' +
+          '<ul class="errs">' + b.invalid.map(function (x) { return "<li>" + esc(x) + "</li>"; }).join("") + "</ul>" +
+          '<div class="row"><button data-a="edit">Edit</button><button class="danger" data-a="remove">Remove</button></div></div>');
+        bad.querySelector('[data-a="edit"]').onclick = function () { fillForm(b); };
+        bad.querySelector('[data-a="remove"]').onclick = function () {
+          if (!confirm("Remove box " + b.name + "?")) return;
+          post("box-remove", {name: b.name}).then(function () { loadBoxes(); refresh(); });
+        };
+        list.appendChild(bad);
+        return;
+      }
+      var models = b.models_held.length ? b.models_held.map(function (m) {
+        var ok = m.cleared || m.mapped_to;
+        var role = m.role || (m.cleared ? "cleared" : "unknown");
+        var txt = {cleared: "", mapped: " (mapped to " + esc(m.mapped_to) + ")", test: " (TEST only)", support: " (support file)",
+                   unknown: " (unknown type)"}[role] || "";
+        var tip = {cleared: "cleared for production", mapped: "runs for cleared model " + esc(m.mapped_to),
+                   test: "TEST ONLY - not cleared for production; runs from this page", support: "text encoder, VAE, upscaler or LoRA: never run on its own",
+                   unknown: "unknown type: never run (set test_kinds in config.json)"}[role] || "";
+        return '<span class="chip' + (ok ? "" : role === "test" ? " test" : " nc") + '" title="' + tip + '">' +
+          esc(m.file) + txt + "</span>"; }).join("")
+        : '<span class="muted small">' + (b.models_error ? "models unknown: " + esc(b.models_error) : "no models read yet") + "</span>";
+      var where = b.where === "local" ? "this machine, port " + b.local_port : esc(b.ssh_host) + " (port " + b.remote_port + " via local " + b.local_port + ")";
+      if (b.api_port) where += " · gRPC via bridge " + b.api_port;
+      var c = el('<div class="boxcard"><div class="row"><b>' + esc(b.name) + "</b>" + osTag(b.os) + '<span class="muted small">' + where + "</span></div>" +
+        (b.note ? '<div class="small">' + esc(b.note) + "</div>" : "") +
+        '<div class="small muted">' + (b.app === "drawthings" ? "Draw Things" : "A1111-style API") + " · " + esc(b.abilities.join(" + ")) +
+        (b.laptop ? " · laptop" : "") + "</div>" +
+        '<div class="models">' + models + "</div>" +
+        '<div class="row"><button data-a="edit">Edit</button><button class="danger" data-a="remove">Remove</button></div></div>');
+      c.querySelector('[data-a="edit"]').onclick = function () { fillForm(b); };
+      c.querySelector('[data-a="remove"]').onclick = function () {
+        if (!confirm("Remove box " + b.name + "?")) return;
+        post("box-remove", {name: b.name}).then(function (j) {
+          $("boxmsg").textContent = j._status >= 400 ? j.error : "removed " + b.name; loadBoxes(); refresh(); });
+      };
+      list.appendChild(c);
+    });
+  }
+  function fillForm(b) {
+    var f = $("boxf");
+    editName = b ? b.name : null;
+    $("boxformTitle").textContent = b ? "Edit box " + b.name : "Add a box";
+    $("boxSave").textContent = b ? "Save box" : "Add box";
+    f.name.value = b ? b.name : ""; f.name.readOnly = !!b;
+    f.where.value = b ? b.where : "local";
+    f.ssh_host.value = b ? b.ssh_host : ""; f.ssh_key.value = b ? b.ssh_key : "";
+    f.remote_port.value = b ? b.remote_port : 7860; f.local_port.value = b ? b.local_port : ""; f.api_port.value = b ? (b.api_port || 0) : 0;
+    if (b) f.engine.value = b.engine;
+    f.app.value = b ? b.app : "drawthings"; f.os.value = b ? b.os : "macos";
+    f.speed_rank.value = b ? b.speed_rank : 60;
+    f.note.value = b ? (b.note || "") : "";
+    var abil = (b && Array.isArray(b.abilities)) ? b.abilities : ["image"], pools = (b && b.pools) || {}, mm = (b && b.model_map) || {};
+    f.ab_image.checked = abil.indexOf("image") >= 0;
+    f.ab_video.checked = abil.indexOf("video") >= 0;
+    f.pool_image.checked = !!pools.image; f.pool_video.checked = !!pools.video;
+    f.laptop.checked = b ? !!b.laptop : false;
+    f.model_map.value = Object.keys(mm).map(function (k) { return k + " = " + mm[k]; }).join("\n");
+    $("boxerrs").innerHTML = ""; $("boxmsg").textContent = "";
+    if (b) f.scrollIntoView({behavior: "smooth"});
+  }
+  $("boxCancel").onclick = function () { fillForm(null); };
+  $("boxf").onsubmit = function (e) {
+    e.preventDefault();
+    var f = e.target, mm = {}, bad = [];
+    f.model_map.value.split("\n").forEach(function (line) {
+      if (!line.trim()) return;
+      var p = line.split("=");
+      if (p.length !== 2 || !p[0].trim() || !p[1].trim()) bad.push("model map line is not 'cleared_file = file_on_box': " + line);
+      else mm[p[0].trim()] = p[1].trim();
+    });
+    var abil = []; if (f.ab_image.checked) abil.push("image"); if (f.ab_video.checked) abil.push("video");
+    var rec = {name: f.name.value.trim(), where: f.where.value, ssh_host: f.ssh_host.value.trim(), ssh_key: f.ssh_key.value.trim(),
+      remote_port: parseInt(f.remote_port.value, 10), local_port: parseInt(f.local_port.value, 10), api_port: parseInt(f.api_port.value, 10) || 0, engine: f.engine.value,
+      app: f.app.value, os: f.os.value, abilities: abil, laptop: f.laptop.checked, model_map: mm,
+      pools: {image: f.pool_image.checked, video: f.pool_video.checked}, speed_rank: parseFloat(f.speed_rank.value), note: f.note.value.trim()};
+    var ul = $("boxerrs");
+    if (bad.length) { ul.innerHTML = bad.map(function (x) { return "<li>" + esc(x) + "</li>"; }).join(""); return; }
+    post(editName ? "box-edit" : "box-add", rec).then(function (j) {
+      if (j._status >= 400) {
+        ul.innerHTML = (j.errors || [j.error]).map(function (x) { return "<li>" + esc(x) + "</li>"; }).join("");
+        return;
+      }
+      $("boxmsg").textContent = "saved " + rec.name;
+      fillForm(null); loadBoxes(); refresh();
+    });
+  };
+
+  var tab = ["#boxes", "#pools", "#settings"].indexOf(location.hash) >= 0 ? location.hash.slice(1) : null;
+  try { tab = tab || localStorage.getItem("renderpool-tab"); } catch (e) {}
+  if (tab === "boxes" || tab === "settings") show(tab);
+  refresh();
+  setInterval(refresh, 2000);
+})();
+</script>
+</body>
+</html>

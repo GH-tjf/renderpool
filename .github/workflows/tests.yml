@@ -1,0 +1,34 @@
+name: tests
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        python: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: test_boxes
+        run: python test_boxes.py
+      - name: test_engine_contract
+        run: python test_engine_contract.py
+      - name: test_renderpool
+        run: python test_renderpool.py
+      - name: package builds and the command starts
+        run: |
+          python -m venv /tmp/pkg
+          /tmp/pkg/bin/python -m pip install --quiet .
+          /tmp/pkg/bin/renderpool --version

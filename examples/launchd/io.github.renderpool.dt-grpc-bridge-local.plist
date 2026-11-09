@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>io.github.renderpool.dt-grpc-bridge-local</string>
+
+  <!-- dt-grpc-bridge: A1111-style HTTP on 127.0.0.1:7865 in front of
+       Draw Things on this machine, gRPC server on 7859 (TLS). An RenderPool box with where=local, local_port 7859, api_port 7865 uses it.
+       Replace __RENDERPOOL_DIR__ with the folder holding renderpool.py, and run dt-grpc-bridge/setup.sh once first (creates .venv). -->
+  <key>ProgramArguments</key>
+  <array>
+    <string>__RENDERPOOL_DIR__/dt-grpc-bridge/.venv/bin/python</string>
+    <string>-I</string>
+    <string>__RENDERPOOL_DIR__/dt-grpc-bridge/bridge.py</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>__RENDERPOOL_DIR__/dt-grpc-bridge</string>
+
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>ThrottleInterval</key>
+  <integer>10</integer>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <key>LANG</key>
+    <string>en_US.UTF-8</string>
+    <key>DT_GRPC_ADDR</key>
+    <string>127.0.0.1:7859</string>
+    <key>DT_BRIDGE_PORT</key>
+    <string>7865</string>
+    <key>DT_BRIDGE_TIMEOUT_S</key>
+    <string>1200</string>
+    <!-- bridge.py writes one line per request here, rotated at 1 MB x 3 files. -->
+    <key>DT_BRIDGE_LOG</key>
+    <string>__RENDERPOOL_DIR__/state/dt-grpc-requests-local.log</string>
+    <!-- launchd's stdout/stderr (tracebacks only): bridge.py empties it at start when over 1 MB. -->
+    <key>DT_BRIDGE_STDIO_LOG</key>
+    <string>__RENDERPOOL_DIR__/state/dt-grpc-bridge-local.stdio.log</string>
+  </dict>
+
+  <key>StandardOutPath</key>
+  <string>__RENDERPOOL_DIR__/state/dt-grpc-bridge-local.stdio.log</string>
+  <key>StandardErrorPath</key>
+  <string>__RENDERPOOL_DIR__/state/dt-grpc-bridge-local.stdio.log</string>
+</dict>
+</plist>
