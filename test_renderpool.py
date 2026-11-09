@@ -166,7 +166,14 @@ class FakeDT(object):
                     return None
                 self._send(200, json.dumps({"images": [PNG_B64] if fake.images is None else fake.images}).encode())
 
-        self.httpd = ThreadingHTTPServer(("127.0.0.1", self.port), H)
+        class Quiet(ThreadingHTTPServer):
+            def handle_error(self, request, client_address):
+                # a client that gave up (timeout tests) leaves a broken pipe; printing that traceback from a
+                # daemon thread can collide with interpreter shutdown ("could not acquire lock for <stderr>")
+                if not isinstance(sys.exc_info()[1], (BrokenPipeError, ConnectionResetError)):
+                    super().handle_error(request, client_address)
+
+        self.httpd = Quiet(("127.0.0.1", self.port), H)
         self.httpd.daemon_threads = True
         self.port = self.httpd.server_address[1]
         threading.Thread(target=self.httpd.serve_forever, daemon=True).start()
