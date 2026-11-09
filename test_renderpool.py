@@ -1054,6 +1054,7 @@ class TestQueue(Base):
         self.assertEqual((code, j["prompt"], j["negative_prompt"]), (200, "a lighthouse at dawn", "blurry"))
         self.assertEqual(self.ctl("prompt", item=99999)[0], 400)        # unknown item: a clean 400
 
+    @unittest.skipUnless(shutil.which("sips"), "stretching uses macOS sips")
     def test_prompt_test_box_takes_img2img_as_text_only_and_stretches(self):
         fa, fn = self.fake(0.05), self.fake(0.05)
         b = self.broker([self.mk("studio", fa, pools={"image": False, "video": False}),

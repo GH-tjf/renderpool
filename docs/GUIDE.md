@@ -321,6 +321,8 @@ a real engine and never run ssh.
 - One monitor thread probes every box in turn, so a slow or hanging box (a probe or ssh command at its
   timeout) delays the health, power and model checks of the others by that long.
 - One optional shared password, no user accounts (see Access and `SECURITY.md`).
+- Thumbnails and the prompt-test preview's resize to the size asked for use macOS `sips`. On a Linux host,
+  thumbnails fall back as described under History and previews keep the engine's own size.
 - `renderpool.py serve` imports the Unix-only `resource` module, so the RenderPool host must be macOS or Linux.
 
 ## License
