@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "renderpool"
 version = "0.1.0"
-description = "Rendering Pool Manager: one queue and load balancer for every Stable Diffusion WebUI (A1111) API image generator you own - AUTOMATIC1111, Forge, SD.Next, Draw Things, KoboldCpp, stable-diffusion.cpp"
+description = "RenderPool: one queue and load balancer for every Stable Diffusion WebUI (A1111) API image generator you own - AUTOMATIC1111, Forge, SD.Next, Draw Things, KoboldCpp, stable-diffusion.cpp"
 readme = "README.md"
 requires-python = ">=3.9"
 license = {text = "MIT"}

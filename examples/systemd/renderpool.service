@@ -1,11 +1,11 @@
-# systemd user unit for RenderPool (Rendering Pool Manager).
+# systemd user unit for RenderPool.
 #   sed "s#__RENDERPOOL_DIR__#$PWD#g" examples/systemd/renderpool.service > ~/.config/systemd/user/renderpool.service
 #   systemctl --user daemon-reload && systemctl --user enable --now renderpool.service
 #   journalctl --user -u renderpool.service -f
 # For it to run while you are logged out: loginctl enable-linger "$USER".
 # Needs __RENDERPOOL_DIR__/config.json (copy config.example.json and edit it).
 [Unit]
-Description=RenderPool - Rendering Pool Manager
+Description=RenderPool - one queue for all your image machines
 After=network-online.target
 Wants=network-online.target
 

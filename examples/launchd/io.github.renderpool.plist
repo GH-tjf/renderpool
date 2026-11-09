@@ -5,7 +5,7 @@
   <key>Label</key>
   <string>io.github.renderpool</string>
 
-  <!-- RenderPool (Rendering Pool Manager) on port 7875 (the port is set in config.json).
+  <!-- RenderPool on port 7875 (the port is set in config.json).
        Replace __RENDERPOOL_DIR__ with the folder holding renderpool.py, e.g.
          sed "s#__RENDERPOOL_DIR__#$PWD#g" examples/launchd/io.github.renderpool.plist > ~/Library/LaunchAgents/io.github.renderpool.plist
          launchctl load ~/Library/LaunchAgents/io.github.renderpool.plist
