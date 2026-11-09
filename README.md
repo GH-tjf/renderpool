@@ -9,6 +9,7 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/GH-tjf/renderpool/actions/workflows/tests.yml"><img alt="tests" src="https://github.com/GH-tjf/renderpool/actions/workflows/tests.yml/badge.svg"></a>
   <img alt="MIT license" src="https://img.shields.io/badge/license-MIT-7c4dff">
   <img alt="Python 3.9+" src="https://img.shields.io/badge/python-3.9%2B-e040fb">
   <img alt="Zero dependencies" src="https://img.shields.io/badge/dependencies-zero-ff914d">
